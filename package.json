@@ -1,0 +1,46 @@
+{
+  "name": "termdat-mcp",
+  "version": "0.1.0",
+  "description": "MCP server exposing the Swiss Federal Chancellery's TERMDAT terminology database (DE/FR/IT/EN/RM).",
+  "type": "module",
+  "bin": {
+    "termdat-mcp": "dist/index.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc && chmod +x dist/index.js",
+    "dev": "tsx src/index.ts",
+    "start": "node dist/index.js",
+    "smoke": "tsx scripts/smoke.ts",
+    "prepare": "npm run build"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "termdat",
+    "switzerland",
+    "terminology",
+    "translation",
+    "cadastre",
+    "real-estate"
+  ],
+  "author": "Thibault Clément",
+  "license": "MIT",
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "@cfworker/json-schema": "^4.1.1",
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "zod": "^3.25.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0"
+  }
+}
