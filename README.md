@@ -218,6 +218,54 @@ List all ~139 collections. Useful to scope searches (e.g. AMVER25 = cadastral su
 
 List the ~23 top-level domain classifications (BAUW construction, RECH law, VERW public administration, etc.).
 
+## Prompts
+
+The server also ships three [MCP prompts](https://modelcontextprotocol.io/specification/2025-06-18/server/prompts), surfaced as user-facing slash commands or templates depending on the client. Each one bakes in the right tool sequence (search → wildcard retry on empty → fetch all languages → present) so users don't have to remember the steps.
+
+### `translate-i18n-key`
+
+Produce a Swiss-federal i18n entry for the given term, in JSON with a citation line ready for the commit message.
+
+| Arg | Required | Notes |
+|---|---|---|
+| `term` | yes | The word to translate. Any language. |
+| `key` | no | i18n key for the JSON output. Defaults to a snake_case slug of `term`. |
+| `context` | no | Domain hint (e.g. `cadastre`, `tenancy`) to disambiguate when several entries match. |
+
+Example invocation in Claude Code: `/termdat:translate-i18n-key term="easement" key="easement"` — the agent calls `termdat_search`, picks the cadastre/property match, fetches all four languages, and emits:
+
+```json
+{
+  "easement": {
+    "de": "Dienstbarkeit",
+    "fr": "servitude",
+    "it": "servitù",
+    "en": "easement"
+  }
+}
+```
+
+followed by `(easement: termdat:<id>)`.
+
+### `lookup-term`
+
+Show the full multilingual TERMDAT entry — names, definition, federal-law citation, collection, and source URL. For research/legal work, not i18n.
+
+| Arg | Required | Notes |
+|---|---|---|
+| `term` | yes | The word to look up. |
+| `language` | no | `DE` / `FR` / `IT` / `EN` / `RM`. Default `DE`. |
+| `context` | no | Domain hint to scope the search. |
+
+### `reverse-lookup-term`
+
+Take a term in any language and locate the canonical Swiss-federal headword. Critically, **flags whether your input is the official headword or a synonym** — common usage often differs from the federal canonical form (e.g. `Parzelle` → `Grundstück`, `papier-valeur hypothécaire` → `cédule hypothécaire`).
+
+| Arg | Required | Notes |
+|---|---|---|
+| `term` | yes | Term as you have it. |
+| `sourceLanguage` | yes | `DE` / `FR` / `IT` / `EN` / `RM`. |
+
 ## Usage examples
 
 The agent decides which tool to call based on your prompt. Some examples that route well:

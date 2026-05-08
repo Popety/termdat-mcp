@@ -142,5 +142,161 @@ server.tool(
   },
 )
 
+server.prompt(
+  'translate-i18n-key',
+  `Translate a term into a Swiss-federal DE/FR/IT/EN i18n entry from TERMDAT,
+with the official source citation ready to drop into a commit message.
+
+Use this when adding or updating an i18n key for cadastre, land-registry,
+notarial, federal-administrative, tenancy, construction, or zoning vocabulary.`,
+  {
+    term: z
+      .string()
+      .describe(
+        'Term to translate (any language). The agent will detect the source language.',
+      ),
+    key: z
+      .string()
+      .optional()
+      .describe(
+        'Optional i18n key for the JSON output. Defaults to a snake_case slug of the term.',
+      ),
+    context: z
+      .string()
+      .optional()
+      .describe(
+        'Optional domain hint to disambiguate (e.g. "cadastre", "tenancy", "land registry"). Helps when multiple entries match.',
+      ),
+  },
+  ({ term, key, context }) => {
+    const keyLabel = key ?? '<snake_case_slug_of_term>'
+    const lines = [
+      `Look up "${term}" in TERMDAT and produce a Swiss-federal i18n entry.`,
+      context ? `Domain hint: ${context}.` : null,
+      '',
+      'Steps:',
+      `1. Call termdat_search with query="${term}" and the language you detect for "${term}".${context ? ` If a relevant collection exists for the "${context}" domain, scope the search with collectionIds (use termdat_list_collections first if needed).` : ''}`,
+      `2. If results are empty, retry with a wildcard ("${term}*") — TERMDAT's canonical headword often differs from common usage (e.g. "Parzelle" lives under "Grundstück").`,
+      `3. From the candidates, pick the entry that best matches "${term}"${context ? ` in the "${context}" domain` : ''}.`,
+      '4. Call termdat_get_entry_all_languages with that entry id to get all four DE/FR/IT/EN names.',
+      '5. Output a JSON i18n block:',
+      '   ```json',
+      '   {',
+      `     "${keyLabel}": {`,
+      '       "de": "...",',
+      '       "fr": "...",',
+      '       "it": "...",',
+      '       "en": "..."',
+      '     }',
+      '   }',
+      '   ```',
+      `6. Below the JSON, output the citation line for the commit message: \`(${key ?? '<key>'}: termdat:<entryId>)\`.`,
+      '7. Flag any caveats: entry status not "Validiert", missing federal-law source (only office-doc), or ambiguity between multiple plausible candidates.',
+    ]
+    return {
+      messages: [
+        {
+          role: 'user',
+          content: {
+            type: 'text',
+            text: lines.filter((line): line is string => line !== null).join('\n'),
+          },
+        },
+      ],
+    }
+  },
+)
+
+server.prompt(
+  'lookup-term',
+  `Show the full TERMDAT entry for a term in all four languages, with the
+federal-law citation, definition, and source URL. Useful for legal or
+research work where you need to cite the source — not just an i18n string.`,
+  {
+    term: z.string().describe('Term to look up.'),
+    language: z
+      .string()
+      .optional()
+      .describe('Language of the term: DE, FR, IT, EN, or RM. Default DE.'),
+    context: z
+      .string()
+      .optional()
+      .describe('Optional domain hint to scope the search.'),
+  },
+  ({ term, language, context }) => {
+    const lang = (language ?? 'DE').toUpperCase()
+    const lines = [
+      `Look up "${term}" in TERMDAT and present the full multilingual entry.`,
+      context ? `Domain hint: ${context}.` : null,
+      '',
+      'Steps:',
+      `1. Call termdat_search with query="${term}", inLanguage="${lang}".${context ? ` Scope to the "${context}" domain via collectionIds when reasonable.` : ''}`,
+      `2. If empty, retry with "${term}*".`,
+      '3. For the best match, call termdat_get_entry_all_languages.',
+      '4. Present:',
+      '   - All four language names with their abbreviations (if any)',
+      '   - The German definition and its source citation (e.g. "Grundbuchverordnung, Art. 6 Abs. 1 (SR 211.432.1)")',
+      '   - The collection (e.g. "GRF19 — Land register terminology")',
+      '   - The TERMDAT entry id and URL',
+      '   - The status and reliability fields',
+    ]
+    return {
+      messages: [
+        {
+          role: 'user',
+          content: {
+            type: 'text',
+            text: lines.filter((line): line is string => line !== null).join('\n'),
+          },
+        },
+      ],
+    }
+  },
+)
+
+server.prompt(
+  'reverse-lookup-term',
+  `Find the canonical Swiss-federal entry for a term given in any language.
+Tells you whether your input is the official headword or a synonym, and
+shows the equivalents in the other three languages.`,
+  {
+    term: z
+      .string()
+      .describe(
+        'Term as you have it (may be common usage, not the canonical Swiss-federal headword).',
+      ),
+    sourceLanguage: z
+      .string()
+      .describe('Language of the input term: DE, FR, IT, EN, or RM.'),
+  },
+  ({ term, sourceLanguage }) => {
+    const lang = sourceLanguage.toUpperCase()
+    const lines = [
+      `I have the term "${term}" in ${lang}. Find the canonical Swiss-federal TERMDAT entry and show me the equivalents in the other three languages.`,
+      '',
+      'Steps:',
+      `1. Call termdat_search with query="${term}", inLanguage="${lang}". The official Swiss term may not match my input exactly — common-usage terms often live under different headwords (e.g. "Parzelle" → "Grundstück", "papier-valeur hypothécaire" → "cédule hypothécaire").`,
+      `2. If empty, retry with "${term}*", then "*${term}*".`,
+      '3. For the best match, call termdat_get_entry_all_languages.',
+      '4. Present:',
+      `   - **Whether "${term}" is the canonical headword** in ${lang}, or a synonym / non-canonical variant. If non-canonical, name the canonical headword.`,
+      '   - The canonical name in each of DE / FR / IT / EN',
+      '   - One-line federal-law citation (the German `nameSource`)',
+      '   - The TERMDAT entry id and URL',
+    ]
+    return {
+      messages: [
+        {
+          role: 'user',
+          content: {
+            type: 'text',
+            text: lines.join('\n'),
+          },
+        },
+      ],
+    }
+  },
+)
+
 const transport = new StdioServerTransport()
 await server.connect(transport)
