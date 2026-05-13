@@ -1,6 +1,6 @@
 {
   "name": "termdat-mcp",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "MCP server exposing the Swiss Federal Chancellery's TERMDAT terminology database (DE/FR/IT/EN/RM).",
   "type": "module",
   "bin": {

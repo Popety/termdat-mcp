@@ -26,12 +26,53 @@ construction, and zoning vocabulary — official Swiss multilingual terms.
 Returns up to 'maxEntries' candidates with their official translations,
 source citations (federal-law references), and domain classification.
 
-Lucene query syntax: 'Bund' (exact), 'Schweiz*' (begins with), '*amt' (ends
-with), '*term*' (contains), 'Bund~' (fuzzy). If a search returns nothing,
-retry with a wildcard.
+SEARCH STRATEGY — failed searches almost always come from query style, not
+missing data. Before concluding "not in TERMDAT", try in this order:
+  1. Start with the abbreviation ('IUS', 'COS', 'OFRF'). Short, robust,
+     language-agnostic.
+  2. Prefer a 2-word FR or IT query over a long DE compound. Lucene's
+     analyzer may not split 'Geschossflächenziffer' into matchable
+     tokens; 'indice utilisation' always does.
+  3. For cadastre/zoning/surveying lookups, pin collectionIds to
+     [948, 11514] (MOF98 + AMVER25) immediately — searching globally
+     drowns hits in unrelated 'ius cogens' / legal matches.
+  4. If the name-search returns empty, retry with fieldDefinition=true
+     and fieldContext=true before giving up. The concept may be defined
+     under a different headword.
+  5. Pivot via the FR or IT abbreviation when a DE compound fails, then
+     read the DE block from languageDetails of the returned entry.
+
+PRE-IVHB CAVEAT — Swiss building-area abbreviations were standardised by
+IVHB around 2010. TERMDAT entries pre-date that, so a modern abbreviation
+(aGSF, GFZ, BMZ) may be absent even when the concept is present under the
+older long name. Search by the long FR term or the FR abbreviation (IUS,
+IBUS, COS), then map to the modern IVHB DE abbreviation manually.
+
+ONE ENTRY, MULTIPLE SEQUENCES — a single TERMDAT entry can bundle related
+concepts in different 'sequence' numbers (e.g. entry 96311 mixes
+Ausnützungsziffer and Baumassenziffer across seq 1 / 2 / 3 of the DE
+block). Always iterate all languageDetails entries — don't just trust
+the first hit.
+
+Lucene query syntax: 'Bund' (exact), 'Schweiz*' (begins with), '*amt'
+(ends with), '*term*' (contains), 'Bund~' (fuzzy).
 
 By default only the 'name', 'abbreviation', 'phraseology', and 'terminus'
-fields are searched. Set fieldDefinition=true to also match in definitions.`,
+fields are searched. Set fieldDefinition=true to also match in definitions.
+
+EXAMPLES:
+  termdat_search(query="IUS", inLanguage="FR", outLanguage="DE",
+                 collectionIds=[948])
+    → entry 96311 (Ausnützungsziffer / IUS / indice di sfruttamento
+                   / plot ratio)
+
+  termdat_search(query="Überbau*", inLanguage="DE", outLanguage="FR",
+                 collectionIds=[948])
+    → entry 96345 (Überbauungsziffer / ÜZ / coefficient d'occupation
+                   / COS)
+
+  termdat_search(query="Grundbuch", inLanguage="DE", outLanguage="FR")
+    → entry 3089 (Federal Office for Land Registry and Real Estate Law)`,
   {
     query: z
       .string()
@@ -95,7 +136,12 @@ server.tool(
   `Fetch a single TERMDAT entry by id with translations in DE, FR, IT, and EN
 merged into one response. The upstream /Entry endpoint only returns one
 in/out language pair per call, so this tool parallelizes 3 calls and
-deduplicates the languageDetails — saving the agent from scripting it.`,
+deduplicates the languageDetails — saving the agent from scripting it.
+
+Note: a single entry may bundle related concepts across multiple 'sequence'
+numbers per language (e.g. entry 96311 covers Ausnützungsziffer in seq 1,
+Baumassenziffer in seq 2, etc.). Iterate all languageDetails entries —
+don't just read the first hit.`,
   {
     entryId: z.number().int().describe('TERMDAT entry id (e.g. 3089).'),
     pivotLanguage: langSchema
